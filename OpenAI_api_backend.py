@@ -237,6 +237,20 @@ def analyze_sonarqube():
 # ------------------------
 
 
+def parse_code_review_response(response_text):
+    """Extracts score, feedback, revised code, and YouTube link from GPT response."""
+    score_match = re.search(r"Score:\s*(\d+)/100", response_text)
+    feedback_match = re.search(r"Feedback:\n(.+?)\n\nSuggested Revised Code:", response_text, re.DOTALL)
+    code_match = re.search(r"Suggested Revised Code:\n```(?:\w+)?\n(.+?)\n```", response_text, re.DOTALL)
+    youtube_match = re.search(r"Recommended YouTube Video:\n(https?://[^\s]+)", response_text)
+
+    return {
+        "score": int(score_match.group(1)) if score_match else None,
+        "feedback": feedback_match.group(1).strip() if feedback_match else "",
+        "revised_code": code_match.group(1).strip() if code_match else "",
+        "youtube_link": youtube_match.group(1).strip() if youtube_match else None
+    }
+
 @app.route('/code_review', methods=['POST'])
 def code_review():
     try:
@@ -281,8 +295,14 @@ def code_review():
         )
 
         response_text = response.choices[0].message.content
+        parsed = parse_code_review_response(response_text)
+
         return jsonify({
-            "raw_response": response_text
+            "score": parsed["score"],
+            "feedback": parsed["feedback"],
+            "revised_code": parsed["revised_code"],
+            "youtube_link": parsed["youtube_link"],
+            # "raw_response": response_text  # Optional
         })
 
     except Exception as e:
