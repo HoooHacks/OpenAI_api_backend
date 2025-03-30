@@ -247,7 +247,26 @@ def code_review():
             return jsonify({"error": "No code provided"}), 400
 
         prompt = f"""
-                You are a senior software engineer and mentor.
+                You are a senior software engineer and mentor. Review the following code snippet and respond with:
+
+                1. **Score out of 100**, evaluating modularity, naming conventions, readability, and maintainability.
+                2. **Feedback**, including positive aspects and improvement suggestions.
+                3. **A revised version** of the code, improving quality while maintaining logic.
+                4. **A direct YouTube video link** that would help the developer learn about their biggest area for improvement. Use an actual link you've seen before or one that would help them most. Only put the link, no description
+
+                Format your response **exactly** like this:
+
+                Score: <score>/100
+
+                Feedback:
+                <your feedback>
+
+                Suggested Revised Code:
+                <better version of the code>
+
+                Recommended YouTube Video:
+                <youtube_link>
+                
                 Here is the code snippet I want you to review
                 {code}
                 
