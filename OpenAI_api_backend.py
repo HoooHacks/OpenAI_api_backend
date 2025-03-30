@@ -10,6 +10,7 @@ import re
 # Load environment variables and set OpenAI API key
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
+CODE_CHAT_ASSISTANT_ID = os.getenv("CODE_CHAT_ASSISTANT_ID")
 # Initialize Flask app
 app = Flask(__name__)
 CORS(app)  # Allow frontend requests
