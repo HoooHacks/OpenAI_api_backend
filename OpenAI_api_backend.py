@@ -232,7 +232,44 @@ def analyze_sonarqube():
         print(f"[ERROR] SonarQube Analysis Failed: {e}")
         return jsonify({"error": "Unable to process SonarQube analysis"}), 500
 
+# ------------------------
+# Code_review related
+# ------------------------
 
+
+@app.route('/code_review', methods=['POST'])
+def code_review():
+    try:
+        data = request.get_json()
+        code = data.get("code", "")
+
+        if not code.strip():
+            return jsonify({"error": "No code provided"}), 400
+
+        prompt = f"""
+                You are a senior software engineer and mentor.
+                Here is the code snippet I want you to review
+                {code}
+                
+            """
+        client = openai.OpenAI()
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are a software engineering mentor and coding tutor."},
+                {"role": "user", "content": prompt}
+            ]
+        )
+
+        response_text = response.choices[0].message.content
+        return jsonify({
+            "raw_response": response_text
+        })
+
+    except Exception as e:
+        print(f"[ERROR] Code Review Failed: {e}")
+        return jsonify({"error": "Unable to analyze code"}), 500
+    
 if __name__ == '__main__':
     print("[INFO] Flask server is running on http://127.0.0.1:5000")
     app.run(debug=True)
