@@ -309,6 +309,91 @@ def code_review():
         print(f"[ERROR] Code Review Failed: {e}")
         return jsonify({"error": "Unable to analyze code"}), 500
     
+# ------------------------
+# Chatbot related
+# ------------------------
+
+# call this when starting a chat, receive thread ID for it.
+@app.route('/start_chat_thread', methods=['POST'])
+def start_chat_thread():
+    try:
+        data = request.get_json()
+        code_snippet = data.get("code", "")
+        if not code_snippet:
+            return jsonify({"error": "No code provided"}), 400
+
+        client = openai.OpenAI()
+
+        # Create thread
+        thread = client.beta.threads.create()
+        thread_id = thread.id
+
+        # Add initial message with code context
+        client.beta.threads.messages.create(
+            thread_id=thread_id,
+            role="user",
+            content=f"""
+You are a software engineering tutor. The user will ask questions about the following code:
+
+{code_snippet}
+
+Please keep this code in memory and help explain, improve, or clarify it as needed.
+"""
+        )
+
+        return jsonify({"thread_id": thread_id})
+
+    except Exception as e:
+        print(f"[ERROR] start_chat_thread failed: {e}")
+        return jsonify({"error": "Failed to start chat thread"}), 500
+
+# upon receiving thread_id and message, it returns chatbot response.
+@app.route('/chat_in_thread', methods=['POST'])
+def chat_in_thread():
+    try:
+        data = request.get_json()
+        thread_id = data.get("thread_id")
+        user_message = data.get("message")
+
+        if not thread_id or not user_message:
+            return jsonify({"error": "Missing thread_id or message"}), 400
+
+        client = openai.OpenAI()
+
+        # Add user message
+        client.beta.threads.messages.create(
+            thread_id=thread_id,
+            role="user",
+            content=user_message
+        )
+
+        # Run assistant using the preset ID
+        run = client.beta.threads.runs.create(
+            thread_id=thread_id,
+            assistant_id=CODE_CHAT_ASSISTANT_ID
+        )
+
+        # Wait for completion
+        while True:
+            status = client.beta.threads.runs.retrieve(
+                thread_id=thread_id,
+                run_id=run.id
+            )
+            if status.status == "completed":
+                break
+            time.sleep(1)
+
+        # Get final assistant response
+        messages = client.beta.threads.messages.list(thread_id=thread_id)
+        response = messages.data[0].content[0].text.value
+
+        return jsonify({"response": response})
+
+    except Exception as e:
+        print(f"[ERROR] Chat in thread failed: {e}")
+        return jsonify({"error": "Chat failed"}), 500    
+
+    
 if __name__ == '__main__':
     print("[INFO] Flask server is running on http://127.0.0.1:5000")
     app.run(debug=True)
