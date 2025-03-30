@@ -394,6 +394,150 @@ def chat_in_thread():
         print(f"[ERROR] Chat in thread failed: {e}")
         return jsonify({"error": "Chat failed"}), 500    
 
+# ------------------------
+# Compete Mode Related
+# ------------------------
+
+@app.route('/generate_ai_challenger_code', methods=['POST'])
+def generate_ai_challenger_code():
+    try:
+        data = request.get_json()
+        code = data.get("code", "")
+
+        if not code.strip():
+            return jsonify({"error": "No code provided"}), 400
+
+        prompt = f"""
+        You are a junior developer tasked with reimplementing a code snippet that someone wrote.
+
+        Step 1: First detect what programming language this is (it may not be Python).
+        Step 2: Reimplement the code in the **same language** with these guidelines:
+        - The logic must still work correctly.
+        - It must be **better than the original** (e.g. fixed bugs, improved logic, less code smell).
+        - But write it like a junior developer, include one or more minor falloffs like: less modularity, short unclear variable names, some duplication, inconsistent formatting, and no comments or docstrings.
+
+        Output only the reimplemented code — no backticks like ```python, java, etc., no explanation.
+
+        Original Code:
+        {code}
+        """
+
+        client = openai.OpenAI()
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are an inexperienced but improving junior developer."},
+                {"role": "user", "content": prompt}
+            ]
+        )
+
+        flawed_code = response.choices[0].message.content.strip()
+
+        return jsonify({
+            "ai_challenger_code": flawed_code
+        })
+
+    except Exception as e:
+        print(f"[ERROR] AI Challenger Generation Failed: {e}")
+        return jsonify({"error": "Unable to generate AI challenger code"}), 500
+    
+@app.route('/judge_code_competition', methods=['POST'])
+def judge_code_competition():
+    try:
+        data = request.get_json()
+        user_code = data.get("user_code", "")
+        ai_code = data.get("ai_code", "")
+
+        if not user_code.strip() or not ai_code.strip():
+            return jsonify({"error": "Both user_code and ai_code are required"}), 400
+
+        prompt = f"""
+            You are a senior software engineer evaluating two implementations of the same function.
+            They may be in any language — your job is to recognize the language and review accordingly.
+
+            ### Evaluation Criteria:
+            - Naming conventions
+            - Duplicated logic
+            - Modularity / readability
+            - Bugs or inefficiencies
+            - Maintainability
+            - Scalability
+            - Other common code smells
+
+            ### Your Task:
+            Determine which implementation is better, and provide a structured breakdown.
+
+            Return your response in EXACTLY the following format. Do NOT change the words.
+
+            Winner: <User or AI>
+
+            UserPros:
+            --- <bullet 1>
+            --- <bullet 2>
+            --- <bullet 3> (Optional)
+
+            UserCons:
+            --- <bullet 1>
+            --- <bullet 2>
+            --- <bullet 3> (Optional)
+
+            AIPros:
+            --- <bullet 1>
+            --- <bullet 2>
+            --- <bullet 3> (Optional)
+
+            AICons:
+            --- <bullet 1>
+            --- <bullet 2>
+            --- <bullet 3> (Optional)
+
+            Reason:
+            <Final 1–2 sentence reason why one is better>
+
+            ----------
+
+            User Code:
+            {user_code}
+
+            AI Code:
+            {ai_code}
+            """
+
+        client = openai.OpenAI()
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are a veteran software architect acting as a code competition judge."},
+                {"role": "user", "content": prompt}
+            ]
+        )
+
+        content = response.choices[0].message.content.strip()
+
+        # Parsing each section using regex
+        winner = re.search(r"Winner:\s*(User|AI)", content)
+
+        user_pros = re.search(r"UserPros:\s*(.*?)(?:\n\s*UserCons:)", content, re.DOTALL)
+        user_cons = re.search(r"UserCons:\s*(.*?)(?:\n\s*AIPros:)", content, re.DOTALL)
+        ai_pros   = re.search(r"AIPros:\s*(.*?)(?:\n\s*AICons:)", content, re.DOTALL)
+        ai_cons   = re.search(r"AICons:\s*(.*?)(?:\n\s*Reason:)", content, re.DOTALL)
+        reason    = re.search(r"Reason:\s*(.*)", content, re.DOTALL)
+
+
+        # Return nicely structured JSON
+        return jsonify({
+            "winner": winner.group(1) if winner else "Unknown",
+            "user_pros": user_pros.group(1).strip() if user_pros else "[Missing]",
+            "user_cons": user_cons.group(1).strip() if user_cons else "[Missing]",
+            "ai_pros": ai_pros.group(1).strip() if ai_pros else "[Missing]",
+            "ai_cons": ai_cons.group(1).strip() if ai_cons else "[Missing]",
+            "reason": reason.group(1).strip() if reason else "[Missing]",
+            #"raw_response": content
+        })
+
+    except Exception as e:
+        print(f"[ERROR] Judge Evaluation Failed: {e}")
+        return jsonify({"error": "Unable to judge code comparison"}), 500
     
 if __name__ == '__main__':
     print("[INFO] Flask server is running on http://127.0.0.1:5000")
